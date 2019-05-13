@@ -26,12 +26,13 @@ int insert_breakpoint(bp_t **out, pid_t pid, uint64_t addr){
     }
 
     *out = malloc(sizeof(bp_t));
-    (*out)->pid = pid;
-    (*out)->addr = addr;
-    (*out)->orig = orig;
-    (*out)->next = NULL;
-
-    ret = 0;
+    if(*out != NULL){
+        (*out)->pid = pid;
+        (*out)->addr = addr;
+        (*out)->orig = orig;
+        (*out)->next = NULL;
+        ret = 0;
+    }
 
     end:
     return ret;
