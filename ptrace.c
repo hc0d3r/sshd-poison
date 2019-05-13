@@ -7,7 +7,7 @@
 
 int ptrace_seize(pid_t pid, unsigned long opts){
     if(ptrace(PTRACE_SEIZE, pid, NULL, opts) == 0 &&
-        ptrace(PTRACE_INTERRUPT) == 0){
+        ptrace(PTRACE_INTERRUPT, pid) == 0){
         return 0;
     }
 
