@@ -8,16 +8,14 @@
 
 int insert_breakpoint(bp_t **out, pid_t pid, uint64_t addr){
     long orig;
-    int ret;
+    int ret = 1;
 
     orig = ptrace(PTRACE_PEEKTEXT, pid, addr, NULL);
     if(errno){
-        ret = 1;
         goto end;
     }
 
     if(ptrace(PTRACE_POKETEXT, pid, addr, (orig << 8)|0xcc) == -1){
-        ret = 1;
         goto end;
     }
 
