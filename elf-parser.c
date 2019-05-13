@@ -143,6 +143,9 @@ Elf64_Sym *dynsym_name_lookup(elf_t *elf, const char *name){
     strtab = getsectionbyname(elf, ".dynstr");
     symtab = getsectionbyname(elf, ".dynsym");
 
+    if(!strtab || !symtab){
+        goto end;
+    }
 
     slen = strlen(name)+1;
 
@@ -162,6 +165,7 @@ Elf64_Sym *dynsym_name_lookup(elf_t *elf, const char *name){
         }
     }
 
+    end:
     return ret;
 }
 
