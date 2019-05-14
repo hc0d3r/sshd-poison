@@ -93,8 +93,12 @@ save_string:
     xor rax, rax
 
     test rsi, rsi
-    jz write_null
+    jnz not_null
 
+    ; write null-byte if parameter is a null pointer
+    lea rsi, [rel nb]
+
+    not_null:
     mov rdx, rsi
 
     ; get string size
@@ -114,10 +118,3 @@ save_string:
     syscall
 
     ret
-
-    ; write null-byte if parameter is a null pointer
-    write_null:
-    xor rdx, rdx
-    inc dl
-    lea rsi, [rel nb]
-    jmp write
