@@ -5,7 +5,7 @@ objs =	.bin/elf-parser.o .bin/main.o .bin/breakpoint.o \
 
 .PHONY: all clean
 
-all: sshd-poison
+all: sshd-poison monitor
 
 sshd-poison: $(objs) ignotum/lib/libignotum.a
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
@@ -22,9 +22,12 @@ sc.h: .bin/sc
 .bin/sc: sc.asm
 	nasm -f bin $< -o $@
 
+monitor: monitor.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+
 ignotum/lib/libignotum.a:
 	$(MAKE) -C ignotum
 
 clean:
-	-rm -f $(objs) sshd-poison .bin/sc
+	-rm -f $(objs) sshd-poison .bin/sc monitor
 	$(MAKE) -C ignotum clean
