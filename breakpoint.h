@@ -1,16 +1,16 @@
-#ifndef _BREAKPOINT_H
-#define _BREAKPOINT_H
+#ifndef __BREAKPOINT_H__
+#define __BREAKPOINT_H__
 
 #include <stdint.h>
+#include <unistd.h>
 
-typedef struct bp {
-    pid_t pid;
-    uint64_t addr;
-    long orig;
-    struct bp *next;
-} bp_t;
+struct breakpoint {
+	long address;
+	long bkp;
+};
 
-int insert_breakpoint(bp_t **out, pid_t pid, uint64_t addr);
-int remove_breakpoint(bp_t **out, pid_t pid, uint64_t addr);
+int enable_breakpoint(struct breakpoint *bp, pid_t pid, uint64_t addr);
+int disable_breakpoint(struct breakpoint *bp, pid_t pid);
+int breakpoint_hit(struct breakpoint *bp, pid_t pid);
 
 #endif
