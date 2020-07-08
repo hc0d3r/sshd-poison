@@ -1,22 +1,29 @@
 #include "caves.h"
 
-uint64_t xcave(elf_t *elf, unsigned int len){
-     uint64_t ret = 0, aux;
+/* find the biggest code cave with execution permission */
+uint64_t xcave(uint64_t *len, elf_t *elf)
+{
+	uint64_t ret, aligned_addr;
 
-     Elf64_Phdr *phdr;
-     size_t i;
+	Elf64_Phdr *phdr;
+	size_t i;
 
-     for(i=0; i<elf->nsegments; i++){
-         phdr = elf->segments[i].header;
-         if(!(phdr->p_flags & PF_X))
-             continue;
+	*len = ret = 0;
 
-        aux = (phdr->p_filesz+phdr->p_align) & 0xfffffffffffff000L;
-        if((aux - phdr->p_filesz) >= len){
-            ret = phdr->p_filesz+phdr->p_offset;
-            break;
-        }
-    }
+	for (i = 0; i < elf->nsegments; i++) {
+		phdr = elf->segments[i].header;
 
-    return ret;
+		if (!(phdr->p_flags & PF_X))
+			continue;
+
+		aligned_addr = (phdr->p_filesz + phdr->p_align) & -phdr->p_align;
+		aligned_addr -= phdr->p_filesz;
+
+		if (aligned_addr > *len) {
+			*len = aligned_addr;
+			ret = phdr->p_filesz + phdr->p_offset;
+		}
+	}
+
+	return ret;
 }
