@@ -26,7 +26,7 @@ void wait_prompt(const char *prompt, int fd)
 
 		for (i = 0; i < n; i++) {
 			if (!prompt[j])
-				break;
+				return;
 
 			if (prompt[j] != buf[i] && j)
 				i--, j = 0;
