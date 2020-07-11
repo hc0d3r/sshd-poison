@@ -15,21 +15,18 @@
 
 #define expsize(x) x, (sizeof(x) - 1)
 
-int memfile(int newfd)
+int create_tmpfile(char name[32])
 {
-	int fd, success;
+	int fd;
 
-	fd = memfd_create("hi", 0);
-	if (fd == -1) {
-		success = 0;
-		goto end;
-	}
+	fd = memfd_create("tmp", 0);
+	if (fd != -1)
+		snprintf(name, 32,
+			"/proc/%d/fd/%d", getpid(), fd);
+	else
+		fd = mkstemp(name);
 
-	success = (dup2(fd, newfd) != -1 && fchmod(newfd, 0600) != -1);
-	close(fd);
-
-end:
-	return success;
+	return fd;
 }
 
 char *create_hostkey(void)
@@ -51,23 +48,20 @@ char *create_hostkey(void)
 		"46kekkEMlZnSUgAujqDMKw/VQzSE0+D85zHjShjxVmX+\n"
 		"-----END RSA PRIVATE KEY-----\n";
 
-	static char filename[32] = "HostKey=/tmp/.XXXXXXXXXX";
-	char *hostkey = filename;
-
+	static char filename[40] = "HostKey=/tmp/.XXXXXXXXXX";
+	char *hostkey;
 	int fd;
 
-	if (memfile(42)) {
-		snprintf(filename + 8, sizeof(filename) - 8, "/proc/%d/fd/42", getpid());
-		write(42, expsize(key));
-	}
-
-	else if ((fd = mkstemp(filename + 8)) != -1) {
+	fd = create_tmpfile(filename + 8);
+	if (fd != -1) {
+		hostkey = filename;
+		fchmod(fd, 0600);
 		write(fd, expsize(key));
-		close(fd);
 	}
 
 	else
 		hostkey = NULL;
+
 
 	return hostkey;
 }
