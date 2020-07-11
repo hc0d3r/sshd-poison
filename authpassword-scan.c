@@ -14,7 +14,8 @@ struct mon_table tbl[] = {
 
 #define TBLSIZE (sizeof(tbl) / sizeof(struct mon_table))
 
-uint64_t memsearch_montable(const char *mem, uint64_t start, uint64_t end, size_t len)
+static uint64_t memsearch_montable(const char *mem, uint64_t start,
+	uint64_t end, size_t len)
 {
 	uint64_t pos = (uint64_t)-1;
 	size_t i, j = 0;
@@ -37,7 +38,8 @@ uint64_t memsearch_montable(const char *mem, uint64_t start, uint64_t end, size_
 	return pos;
 }
 
-uint64_t memmem_mon_table(pid_t pid, ignotum_maplist_t *maplist, uint64_t start, uint64_t end)
+static uint64_t memmem_mon_table(pid_t pid, const char *sshd,
+	ignotum_maplist_t *maplist, uint64_t start, uint64_t end)
 {
 	ignotum_mapinfo_t *map;
 	size_t i;
@@ -46,7 +48,7 @@ uint64_t memmem_mon_table(pid_t pid, ignotum_maplist_t *maplist, uint64_t start,
 
 	for (i = 0; i < maplist->len; i++) {
 		map = maplist->maps + i;
-		if (!map->pathname || !strstr(map->pathname, "sshd"))
+		if (!map->pathname || strcmp(map->pathname, sshd))
 			continue;
 
 		char *memory;
@@ -54,7 +56,8 @@ uint64_t memmem_mon_table(pid_t pid, ignotum_maplist_t *maplist, uint64_t start,
 		if ((memory = memory_dump(pid, map->start_addr, map->end_addr)) == NULL)
 			goto end;
 
-		match = memsearch_montable(memory, start, end, map->end_addr - map->start_addr);
+		match = memsearch_montable(memory, start, end,
+			map->end_addr - map->start_addr);
 		free(memory);
 
 		if (match != (uint64_t)-1)
@@ -65,7 +68,7 @@ end:
 	return match;
 }
 
-uint64_t get_mm_answer_authpassword(const char *sshd, pid_t pid)
+uint64_t get_mm_answer_authpassword(pid_t pid, const char *sshd)
 {
 	ignotum_maplist_t maplist;
 	ignotum_mapinfo_t *map;
@@ -91,7 +94,7 @@ uint64_t get_mm_answer_authpassword(const char *sshd, pid_t pid)
 	if (!start)
 		goto end;
 
-	ret = memmem_mon_table(pid, &maplist, start, end);
+	ret = memmem_mon_table(pid, sshd, &maplist, start, end);
 
 end:
 	free_ignotum_maplist(&maplist);
