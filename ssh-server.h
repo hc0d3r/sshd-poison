@@ -4,6 +4,6 @@
 #include <unistd.h>
 
 char *create_hostkey(void);
-pid_t exec_ssh_server(const char *file, char * const argv[]);
+pid_t exec_ssh_server(const char *output, const char *file, char * const argv[]);
 
 #endif

@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <fcntl.h>
+
+#include "output.h"
 
 #define expsize(x) x, (sizeof(x) - 1)
 
@@ -70,9 +73,10 @@ char *create_hostkey(void)
 }
 
 
-pid_t exec_ssh_server(const char *file, char * const argv[])
+pid_t exec_ssh_server(const char *output, const char *file, char * const argv[])
 {
 	pid_t pid = fork();
+	int fd;
 
 	if (pid == 0) {
 		prctl(PR_SET_PDEATHSIG, SIGKILL);
@@ -80,6 +84,26 @@ pid_t exec_ssh_server(const char *file, char * const argv[])
 		/* check if parent pid exists */
 		if (kill(getppid(), 0))
 			kill(getpid(), SIGKILL);
+
+		if (output) {
+			fd = open(output, O_WRONLY);
+			if (fd != -1) {
+				dup2(fd, 1);
+				dup2(fd, 2);
+
+				if (fd > 2)
+					close(fd);
+			}
+
+			else {
+				say("failed to open %s\n", output);
+				dup2(2, 1);
+			}
+		}
+
+		else
+			/* redirect stdout output to stderr */
+			dup2(2, 1);
 
 		ptrace(PTRACE_TRACEME, 0, 0, NULL);
 		kill(getpid(), SIGSTOP);
