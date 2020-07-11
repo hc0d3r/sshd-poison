@@ -27,9 +27,7 @@ loop:
 	jmp loop
 
 magic_pass_success:
-	xor rax, rax
-	inc eax
-	mov eax, 1
+	mov al, 1
 return: ret
 
 continue:
