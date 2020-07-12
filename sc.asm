@@ -31,6 +31,8 @@ magic_pass_success:
 return: ret
 
 continue:
+;;; dirty trick to keep stack alignment
+	push rdi
 	push rdi
 	push rsi
 
@@ -38,6 +40,7 @@ continue:
 	call john_cena_jump
 
 	pop rsi
+	pop rdi
 	pop rdi
 
 ;;; test if authentication is valid
